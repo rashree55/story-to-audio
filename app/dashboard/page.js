@@ -27,7 +27,7 @@ export default function Dashboard() {
 
       if (data.success) {
         toast.success("Text extracted successfully!");
-        setExtractedText(data.text); // store extracted text
+        setExtractedText(data.text);
       } else {
         toast.error("Extraction failed");
       }
@@ -52,21 +52,24 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-10">
+    <div className="min-h-screen bg-gray-50 p-10 flex flex-col items-center">
       <Toaster />
 
       {/* Title */}
-      <h1 className="text-3xl font-semibold mb-6 text-gray-800">
+      <h1 className="text-4xl font-bold mb-10 text-gray-900 tracking-tight">
         Upload PDF / DOCX
       </h1>
 
       {/* Upload Box */}
       <div
-        className={`w-full max-w-xl h-44 mx-auto flex flex-col items-center justify-center rounded-lg border-2 border-dashed transition-all ${
-          dragActive
-            ? "bg-gray-200 border-blue-400"
-            : "bg-gray-100 border-gray-400"
-        }`}
+        className={`w-full max-w-2xl h-56 
+          flex flex-col items-center justify-center 
+          rounded-xl border-2 border-dashed transition-all shadow-sm
+          ${
+            dragActive
+              ? "bg-blue-50 border-blue-500 scale-[1.02]"
+              : "bg-white border-gray-300"
+          }`}
         onDragOver={(e) => {
           e.preventDefault();
           setDragActive(true);
@@ -74,13 +77,13 @@ export default function Dashboard() {
         onDragLeave={() => setDragActive(false)}
         onDrop={handleDrop}
       >
-        <p className="text-lg text-gray-600 mb-3">
+        <p className="text-lg text-gray-600 mb-3 font-medium">
           Drag & Drop your file here
         </p>
 
-        <p className="text-gray-500 mb-2">OR</p>
+        <p className="text-gray-400 mb-3 text-sm">OR</p>
 
-        <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+        <label className="cursor-pointer bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition">
           Choose File
           <input
             type="file"
@@ -93,10 +96,10 @@ export default function Dashboard() {
 
       {/* View Extracted Text Button */}
       {extractedText && (
-        <div className="mt-6 text-center">
+        <div className="mt-8 text-center">
           <button
             onClick={() => setShowModal(true)}
-            className="px-5 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+            className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm transition"
           >
             View Extracted Text
           </button>
@@ -105,20 +108,31 @@ export default function Dashboard() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4">
-          <div className="bg-white p-6 rounded-lg max-w-2xl w-full shadow-xl">
-            <h2 className="text-xl font-bold mb-3">Extracted Text</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center p-4 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-xl max-w-3xl w-full shadow-2xl animate-fadeIn">
+            <h2 className="text-2xl font-semibold mb-4 text-gray-800">
+              Extracted Text
+            </h2>
 
-            <div className="h-80 overflow-y-scroll border p-3 rounded-md bg-gray-50 text-sm whitespace-pre-wrap">
+            <div className="h-96 overflow-y-auto border p-4 rounded-md bg-gray-50 text-sm whitespace-pre-wrap leading-relaxed shadow-inner">
               {extractedText}
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-6 flex justify-end gap-3">
               <button
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 transition"
                 onClick={() => setShowModal(false)}
               >
                 Close
+              </button>
+              <button
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                onClick={() => {
+                  navigator.clipboard.writeText(extractedText);
+                  toast.success("Copied to clipboard!");
+                }}
+              >
+                Copy Text
               </button>
             </div>
           </div>
