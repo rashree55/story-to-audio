@@ -56,3 +56,13 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+model Script {
+  id       String   @id @default(cuid())
+  fileName String
+  raw_text String
+  createdAt DateTime @default(now())
+}
+
+
+
