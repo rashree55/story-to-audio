@@ -6,63 +6,63 @@ export async function POST(req) {
     const { text, scriptId } = await req.json();
 
     if (!text || !scriptId) {
+      return NextResponse.json({ success: false, error: "Missing text or scriptId" });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `
+Rewrite the following story clearly.
+Do NOT add dialogues.
+Do NOT add characters.
+Do NOT add scenes.
+ONLY rewrite the text:
+
+${text}
+                  `
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
+
+    const data = await response.json();
+    console.log("AI RAW:", JSON.stringify(data, null, 2));
+
+    const rewritten = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+
+    if (!rewritten) {
       return NextResponse.json({
         success: false,
-        error: "Missing text or scriptId",
+        error: "AI returned empty response"
       });
     }
 
-    // Call GROK API for rewriting
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.GROK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "grok-1.1",
-        messages: [
-          {
-            role: "system",
-            content: `
-You are a professional story rewriting AI.
-
-Rewrite the given story into clean, structured SCENES.
-Add DIALOGUES where appropriate.
-Do NOT invent new characters.
-Do NOT change the meaning.
-Improve clarity, immersion, pacing, and flow.
-
-Return ONLY the rewritten story — no explanation.
-            `,
-          },
-          {
-            role: "user",
-            content: text,
-          },
-        ],
-      }),
-    });
-
-    const data = await response.json();
-    const rewritten = data?.choices?.[0]?.message?.content;
-
-    // Save rewritten text into DB
+    // ⭐ Save rewritten text in DB
     await prisma.script.update({
       where: { id: scriptId },
-      data: { rewritten_text: rewritten },
+      data: { rewritten_text: rewritten }
     });
 
     return NextResponse.json({
       success: true,
-      rewritten,
+      rewritten
     });
 
   } catch (err) {
-    console.error("REWRITE ERROR:", err);
-    return NextResponse.json({
-      success: false,
-      error: "Rewrite failed",
-    });
+    console.error("SERVER CRASH:", err);
+    return NextResponse.json({ success: false, error: "Server crashed" });
   }
 }

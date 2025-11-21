@@ -1,0 +1,2 @@
+-- Baseline migration for Script table
+-- Table already exists in DB, so this file is intentionally empty.
