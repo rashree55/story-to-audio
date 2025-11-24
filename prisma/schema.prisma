@@ -59,6 +59,7 @@ model Script {
   fileName      String
   raw_text      String
   rewritten_text String?
+  dialogue_text  String?
   createdAt     DateTime @default(now())
 }
 
