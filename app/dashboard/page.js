@@ -12,7 +12,7 @@ export default function Dashboard() {
   const [showExtractModal, setShowExtractModal] = useState(false);
   const [lastScriptId, setLastScriptId] = useState(null);
 
-  // ---------------------- UPLOAD ----------------------
+  // ---------------- UPLOAD ----------------
   const uploadFile = async (file) => {
     if (!file) return;
     const loading = toast.loading("Extracting text...");
@@ -33,10 +33,8 @@ export default function Dashboard() {
         setExtractedText(data.text);
         setLastScriptId(data.id);
         toast.success("Text extracted!");
-      } else {
-        toast.error("Extraction failed");
-      }
-    } catch (err) {
+      } else toast.error("Extraction failed");
+    } catch {
       toast.dismiss(loading);
       toast.error("Upload failed");
     }
@@ -48,11 +46,9 @@ export default function Dashboard() {
     uploadFile(e.dataTransfer.files[0]);
   };
 
-  const handleSelect = (e) => {
-    uploadFile(e.target.files[0]);
-  };
+  const handleSelect = (e) => uploadFile(e.target.files[0]);
 
-  // ---------------------- REWRITE ----------------------
+  // ---------------- REWRITE ----------------
   const rewriteStory = async () => {
     if (!lastScriptId) return toast.error("Upload a file first");
 
@@ -75,16 +71,14 @@ export default function Dashboard() {
         setRewrittenStory(data.rewritten);
         setCharacters(data.characters || []);
         toast.success("Story rewritten!");
-      } else {
-        toast.error("Rewrite failed");
-      }
-    } catch (err) {
+      } else toast.error("Rewrite failed");
+    } catch {
       toast.dismiss(loading);
       toast.error("Rewrite failed");
     }
   };
 
-  // ---------------------- DIALOGUE GENERATION ----------------------
+  // ---------------- DIALOGUES ----------------
   const generateDialogues = async () => {
     if (!rewrittenStory) return toast.error("Rewrite story first");
 
@@ -107,13 +101,17 @@ export default function Dashboard() {
       if (data.success) {
         setDialogueText(data.dialogueText);
         toast.success("Dialogues generated!");
-      } else {
-        toast.error("Dialogue generation failed");
-      }
-    } catch (err) {
+      } else toast.error("Dialogue generation failed");
+    } catch {
       toast.dismiss(loading);
       toast.error("Dialogue generation failed");
     }
+  };
+
+  // ---------------- DOWNLOAD ----------------
+  const downloadFile = () => {
+    if (!lastScriptId) return;
+    window.location.href = `/api/scripts/export?scriptId=${lastScriptId}`;
   };
 
   return (
@@ -124,7 +122,7 @@ export default function Dashboard() {
         Upload PDF / DOCX
       </h1>
 
-      {/* Upload Box */}
+      {/* UPLOAD BOX */}
       <div
         className={`w-full max-w-2xl h-56 flex flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all shadow-sm ${
           dragActive ? "bg-blue-50 border-blue-500" : "bg-white border-gray-300"
@@ -150,8 +148,7 @@ export default function Dashboard() {
         </label>
       </div>
 
-      {/* Extracted & Buttons */}
-      {extractedText && !rewrittenStory && (
+      {extractedText && (
         <div className="mt-8 flex gap-6">
           <button
             onClick={() => setShowExtractModal(true)}
@@ -169,43 +166,52 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Rewritten Story */}
-      {rewrittenStory && !dialogueText && (
+      {/* SINGLE SWITCHING BOX */}
+      {(rewrittenStory || dialogueText) && (
         <div className="mt-10 w-full max-w-3xl">
-          <h2 className="text-2xl font-semibold mb-3">Rewritten Story</h2>
+          <h2 className="text-2xl font-semibold mb-3">
+            {dialogueText ? "Dialogue Version" : "Rewritten Story"}
+          </h2>
 
           <div className="p-4 bg-gray-100 border rounded text-sm whitespace-pre-wrap max-h-96 overflow-y-scroll">
-            {rewrittenStory}
+            {dialogueText || rewrittenStory}
           </div>
 
-          <div className="mt-4 flex gap-3">
+          {!dialogueText && (
             <button
               onClick={generateDialogues}
-              className="px-4 py-2 bg-indigo-600 text-white rounded"
+              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded"
             >
               Generate Dialogues
             </button>
-          </div>
+          )}
+
+          {dialogueText && (
+            <button
+              onClick={downloadFile}
+              className="mt-4 px-5 py-2 bg-green-600 text-white rounded"
+            >
+              Download Dialogue File
+            </button>
+          )}
         </div>
       )}
 
-      {/* Dialogue Output */}
-      {dialogueText && (
-        <div className="mt-10 w-full max-w-3xl">
-          <h2 className="text-2xl font-semibold mb-3">Dialogue Version</h2>
+      {/* EXTRACT MODAL */}
+      {showExtractModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg w-[600px] max-h-[80vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold mb-3">Extracted Text</h2>
 
-          <div className="p-4 bg-gray-100 border rounded text-sm whitespace-pre-wrap max-h-96 overflow-y-scroll">
-            {dialogueText}
-          </div>
+            <div className="whitespace-pre-wrap text-sm bg-gray-100 p-3 rounded border max-h-[60vh] overflow-y-scroll">
+              {extractedText}
+            </div>
 
-          <div className="mt-4">
             <button
-              onClick={() =>
-                window.location.href = `/api/scripts/export?scriptId=${lastScriptId}`
-              }
-              className="px-4 py-2 bg-black text-white rounded"
+              onClick={() => setShowExtractModal(false)}
+              className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
             >
-              Download Dialogue File
+              Close
             </button>
           </div>
         </div>

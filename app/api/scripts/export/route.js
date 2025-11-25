@@ -1,12 +1,14 @@
+// app/api/scripts/export/route.js
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 
-function splitTextIntoLines(text, maxChars = 90) {
+function splitLines(text, maxChars = 90) {
   const words = text.split(/\s+/);
   const lines = [];
   let line = "";
+
   for (const w of words) {
     if ((line + " " + w).trim().length <= maxChars) {
       line = (line + " " + w).trim();
@@ -31,7 +33,9 @@ export async function GET(req) {
       );
     }
 
-    const script = await prisma.script.findUnique({ where: { id: scriptId } });
+    const script = await prisma.script.findUnique({
+      where: { id: scriptId },
+    });
 
     if (!script) {
       return NextResponse.json(
@@ -45,81 +49,72 @@ export async function GET(req) {
         ? script.dialogue_text
         : script.rewritten_text;
 
-    if (!text) {
+    if (!text || text.trim().length === 0) {
       return NextResponse.json(
         { success: false, error: "No text available to export" },
         { status: 400 }
       );
     }
 
-    const filename = script.fileName.toLowerCase();
+    const filename = script.fileName || "output.txt";
+    const lower = filename.toLowerCase();
 
-    // ------------ PDF EXPORT ------------
-    if (filename.endsWith(".pdf")) {
+    // ✅ If original was PDF → export PDF
+    if (lower.endsWith(".pdf")) {
       const pdfDoc = await PDFDocument.create();
       const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+      const fontSize = 12;
       const pageWidth = 595;
       const pageHeight = 842;
       const margin = 40;
-      const fontSize = 12;
-
-      const paragraphs = text.split(/\n\s*\n/);
 
       let page = pdfDoc.addPage([pageWidth, pageHeight]);
       let y = pageHeight - margin;
 
-      for (const para of paragraphs) {
-        const lines = splitTextIntoLines(para.replace(/\r/g, ""), 100);
-
-        for (const line of lines) {
-          if (y - fontSize < margin) {
-            page = pdfDoc.addPage([pageWidth, pageHeight]);
-            y = pageHeight - margin;
-          }
-
-          page.drawText(line, {
-            x: margin,
-            y: y - fontSize,
-            size: fontSize,
-            font,
-          });
-
-          y -= fontSize + 6;
+      splitLines(text).forEach((line) => {
+        if (y < margin + 20) {
+          page = pdfDoc.addPage([pageWidth, pageHeight]); // ✅ now works
+          y = pageHeight - margin;
         }
+        page.drawText(line, { x: margin, y, size: fontSize, font });
+        y -= fontSize + 6;
+      });
 
-        y -= fontSize;
-      }
+      const bytes = await pdfDoc.save();
 
-      const pdfBytes = await pdfDoc.save();
-
-      return new NextResponse(Buffer.from(pdfBytes), {
+      return new NextResponse(Buffer.from(bytes), {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="dialogues.pdf"`,
+          "Content-Disposition": `attachment; filename="${filename.replace(
+            /\.pdf$/i,
+            "-dialogue.pdf"
+          )}"`,
         },
       });
     }
 
-    // ------------ DOCX EXPORT ------------
+    // ✅ Otherwise → export DOCX
+    const paragraphs = text.split(/\n\s*\n/);
+
     const doc = new Document({
       sections: [
         {
-          children: text
-            .split(/\n\s*\n/)
-            .map((para) => {
-              const lines = para
-                .replace(/\r/g, "")
-                .split("\n")
-                .map((l) => l.trim())
-                .filter(Boolean);
+          children: paragraphs.map((para) => {
+            const lines = para
+              .split("\n")
+              .map((l) => l.trim())
+              .filter(Boolean);
 
-              return new Paragraph({
-                children: lines.map(
-                  (line, i) =>
-                    new TextRun({ text: line, break: i !== lines.length - 1 })
-                ),
-              });
-            }),
+            return new Paragraph({
+              children: lines.map(
+                (l, i) =>
+                  new TextRun({
+                    text: l,
+                    break: i > 0 ? 1 : 0,
+                  })
+              ),
+            });
+          }),
         },
       ],
     });
@@ -130,7 +125,10 @@ export async function GET(req) {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="dialogues.docx"`,
+        "Content-Disposition": `attachment; filename="${filename.replace(
+          /\.docx$/i,
+          "-dialogue.docx"
+        )}"`,
       },
     });
   } catch (err) {
