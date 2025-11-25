@@ -1,11 +1,9 @@
-// app/api/scripts/export/route.js
 import { NextResponse } from "next/server";
-import prisma from "../../../../lib/prisma";
+import prisma from "@/lib/prisma";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 
 function splitTextIntoLines(text, maxChars = 90) {
-  // Simple splitter by words to avoid breaking words mid-word.
   const words = text.split(/\s+/);
   const lines = [];
   let line = "";
@@ -25,59 +23,71 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const scriptId = searchParams.get("scriptId");
+
     if (!scriptId) {
-      return NextResponse.json({ success: false, error: "Missing scriptId" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Missing scriptId" },
+        { status: 400 }
+      );
     }
 
     const script = await prisma.script.findUnique({ where: { id: scriptId } });
+
     if (!script) {
-      return NextResponse.json({ success: false, error: "Script not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "Script not found" },
+        { status: 404 }
+      );
     }
 
-    if (!script.rewritten_text || script.rewritten_text.trim().length === 0) {
-      return NextResponse.json({ success: false, error: "No rewritten text available" }, { status: 400 });
+    const text =
+      script.dialogue_text?.trim()?.length > 0
+        ? script.dialogue_text
+        : script.rewritten_text;
+
+    if (!text) {
+      return NextResponse.json(
+        { success: false, error: "No text available to export" },
+        { status: 400 }
+      );
     }
 
-    const text = script.rewritten_text;
-    const filename = script.fileName || "rewritten";
-    const lower = filename.toLowerCase();
+    const filename = script.fileName.toLowerCase();
 
-    // If original was a PDF -> return PDF
-    if (lower.endsWith(".pdf")) {
-      // Create a simple multi-page PDF with Times Roman.
+    // ------------ PDF EXPORT ------------
+    if (filename.endsWith(".pdf")) {
       const pdfDoc = await PDFDocument.create();
-      const timesFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
-      const fontSize = 12;
-      const pageWidth = 595; // A4 width approximation
+      const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+      const pageWidth = 595;
       const pageHeight = 842;
       const margin = 40;
-      const maxWidth = pageWidth - margin * 2;
+      const fontSize = 12;
 
-      // Split into paragraphs (double newline indicates paragraph)
       const paragraphs = text.split(/\n\s*\n/);
 
       let page = pdfDoc.addPage([pageWidth, pageHeight]);
       let y = pageHeight - margin;
 
       for (const para of paragraphs) {
-        const lines = splitTextIntoLines(para.replace(/\r/g, ""), 100); // tuned number
+        const lines = splitTextIntoLines(para.replace(/\r/g, ""), 100);
+
         for (const line of lines) {
-          const textWidth = timesFont.widthOfTextAtSize(line, fontSize);
-          // If we run out of vertical space, add new page
           if (y - fontSize < margin) {
             page = pdfDoc.addPage([pageWidth, pageHeight]);
             y = pageHeight - margin;
           }
-          // draw
-          page.drawText(line, { x: margin, y: y - fontSize, size: fontSize, font: timesFont });
+
+          page.drawText(line, {
+            x: margin,
+            y: y - fontSize,
+            size: fontSize,
+            font,
+          });
+
           y -= fontSize + 6;
         }
-        // paragraph spacing
+
         y -= fontSize;
-        if (y < margin) {
-          page = pdfDoc.addPage([pageWidth, pageHeight]);
-          y = pageHeight - margin;
-        }
       }
 
       const pdfBytes = await pdfDoc.save();
@@ -85,27 +95,30 @@ export async function GET(req) {
       return new NextResponse(Buffer.from(pdfBytes), {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${filename.replace(/(\.pdf)?$/i, ".pdf")}"`,
+          "Content-Disposition": `attachment; filename="dialogues.pdf"`,
         },
       });
     }
 
-    // Otherwise produce DOCX
-    // (We will default to DOCX for non-PDF original files)
+    // ------------ DOCX EXPORT ------------
     const doc = new Document({
       sections: [
         {
-          properties: {},
           children: text
-            .split(/\n\s*\n/) // paragraphs
+            .split(/\n\s*\n/)
             .map((para) => {
-              // create a Paragraph where each line is a separate text run
-              const lines = para.replace(/\r/g, "").split(/\n/).map((l) => l.trim()).filter(Boolean);
-              const runs = [];
-              for (let i = 0; i < lines.length; i++) {
-                runs.push(new TextRun({ text: lines[i], break: i !== lines.length - 1 ? 1 : 0 }));
-              }
-              return new Paragraph({ children: runs });
+              const lines = para
+                .replace(/\r/g, "")
+                .split("\n")
+                .map((l) => l.trim())
+                .filter(Boolean);
+
+              return new Paragraph({
+                children: lines.map(
+                  (line, i) =>
+                    new TextRun({ text: line, break: i !== lines.length - 1 })
+                ),
+              });
             }),
         },
       ],
@@ -115,12 +128,16 @@ export async function GET(req) {
 
     return new NextResponse(Buffer.from(buffer), {
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${filename.replace(/(\.docx)?$/i, ".docx")}"`,
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename="dialogues.docx"`,
       },
     });
   } catch (err) {
     console.error("EXPORT ERROR:", err);
-    return NextResponse.json({ success: false, error: "Export failed" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Export failed" },
+      { status: 500 }
+    );
   }
 }

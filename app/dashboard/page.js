@@ -7,9 +7,10 @@ export default function Dashboard() {
   const [dragActive, setDragActive] = useState(false);
   const [extractedText, setExtractedText] = useState("");
   const [rewrittenStory, setRewrittenStory] = useState("");
+  const [dialogueText, setDialogueText] = useState("");
+  const [characters, setCharacters] = useState([]);
   const [showExtractModal, setShowExtractModal] = useState(false);
   const [lastScriptId, setLastScriptId] = useState(null);
-  const [downloadModalOpen, setDownloadModalOpen] = useState(false);
 
   // ---------------------- UPLOAD ----------------------
   const uploadFile = async (file) => {
@@ -44,13 +45,11 @@ export default function Dashboard() {
   const handleDrop = (e) => {
     e.preventDefault();
     setDragActive(false);
-    const file = e.dataTransfer.files[0];
-    uploadFile(file);
+    uploadFile(e.dataTransfer.files[0]);
   };
 
   const handleSelect = (e) => {
-    const file = e.target.files[0];
-    uploadFile(file);
+    uploadFile(e.target.files[0]);
   };
 
   // ---------------------- REWRITE ----------------------
@@ -74,6 +73,7 @@ export default function Dashboard() {
 
       if (data.success) {
         setRewrittenStory(data.rewritten);
+        setCharacters(data.characters || []);
         toast.success("Story rewritten!");
       } else {
         toast.error("Rewrite failed");
@@ -84,17 +84,40 @@ export default function Dashboard() {
     }
   };
 
-  // ---------------------- DOWNLOAD ----------------------
-  const downloadRewrittenFile = () => {
-    if (!lastScriptId) return;
+  // ---------------------- DIALOGUE GENERATION ----------------------
+  const generateDialogues = async () => {
+    if (!rewrittenStory) return toast.error("Rewrite story first");
 
-    window.location.href = `/api/scripts/export?scriptId=${lastScriptId}`;
-    setDownloadModalOpen(false);
+    const loading = toast.loading("Generating dialogues...");
+
+    try {
+      const res = await fetch("/api/story-dialogue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rewrittenStory,
+          characters,
+          scriptId: lastScriptId,
+        }),
+      });
+
+      const data = await res.json();
+      toast.dismiss(loading);
+
+      if (data.success) {
+        setDialogueText(data.dialogueText);
+        toast.success("Dialogues generated!");
+      } else {
+        toast.error("Dialogue generation failed");
+      }
+    } catch (err) {
+      toast.dismiss(loading);
+      toast.error("Dialogue generation failed");
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-10 flex flex-col items-center">
-
       <Toaster />
 
       <h1 className="text-4xl font-bold mb-10 text-gray-900">
@@ -127,7 +150,8 @@ export default function Dashboard() {
         </label>
       </div>
 
-      {extractedText && (
+      {/* Extracted & Buttons */}
+      {extractedText && !rewrittenStory && (
         <div className="mt-8 flex gap-6">
           <button
             onClick={() => setShowExtractModal(true)}
@@ -145,87 +169,44 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ---------------------- REWRITTEN STORY ---------------------- */}
-      {rewrittenStory && (
+      {/* Rewritten Story */}
+      {rewrittenStory && !dialogueText && (
         <div className="mt-10 w-full max-w-3xl">
           <h2 className="text-2xl font-semibold mb-3">Rewritten Story</h2>
 
-          {/* Scrollable Box */}
           <div className="p-4 bg-gray-100 border rounded text-sm whitespace-pre-wrap max-h-96 overflow-y-scroll">
             {rewrittenStory}
           </div>
 
           <div className="mt-4 flex gap-3">
             <button
-              onClick={() => {
-                navigator.clipboard.writeText(rewrittenStory);
-                toast.success("Copied!");
-              }}
-              className="px-4 py-2 bg-gray-300 rounded"
+              onClick={generateDialogues}
+              className="px-4 py-2 bg-indigo-600 text-white rounded"
             >
-              Copy
+              Generate Dialogues
             </button>
+          </div>
+        </div>
+      )}
 
+      {/* Dialogue Output */}
+      {dialogueText && (
+        <div className="mt-10 w-full max-w-3xl">
+          <h2 className="text-2xl font-semibold mb-3">Dialogue Version</h2>
+
+          <div className="p-4 bg-gray-100 border rounded text-sm whitespace-pre-wrap max-h-96 overflow-y-scroll">
+            {dialogueText}
+          </div>
+
+          <div className="mt-4">
             <button
-              onClick={() => setDownloadModalOpen(true)}
+              onClick={() =>
+                window.location.href = `/api/scripts/export?scriptId=${lastScriptId}`
+              }
               className="px-4 py-2 bg-black text-white rounded"
             >
-              Download Rewritten File
+              Download Dialogue File
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Extract Modal */}
-      {showExtractModal && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4">
-          <div className="bg-white p-6 rounded-xl max-w-3xl w-full shadow-xl">
-            <h2 className="text-2xl font-semibold mb-4">Extracted Text</h2>
-
-            <div className="h-80 overflow-y-auto border p-4 rounded bg-gray-50 whitespace-pre-wrap">
-              {extractedText}
-            </div>
-
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={() => setShowExtractModal(false)}
-                className="px-4 py-2 bg-gray-300 rounded"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Download Modal */}
-      {downloadModalOpen && (
-        <div className="fixed inset-0 bg-black/30 flex justify-center items-center p-4">
-          <div className="bg-white p-6 rounded-md shadow-lg max-w-sm w-full">
-            <h3 className="text-lg font-semibold mb-4">
-              Download Rewritten File
-            </h3>
-
-            <p className="text-sm mb-4">
-              Click download to get the rewritten file in the same format as
-              upload.
-            </p>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDownloadModalOpen(false)}
-                className="px-3 py-2 bg-gray-200 rounded"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={downloadRewrittenFile}
-                className="px-3 py-2 bg-blue-600 text-white rounded"
-              >
-                Download
-              </button>
-            </div>
           </div>
         </div>
       )}
