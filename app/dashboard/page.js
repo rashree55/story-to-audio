@@ -9,10 +9,9 @@ export default function Dashboard() {
   const [rewrittenStory, setRewrittenStory] = useState("");
   const [dialogueText, setDialogueText] = useState("");
   const [characters, setCharacters] = useState([]);
-  const [showExtractModal, setShowExtractModal] = useState(false);
   const [lastScriptId, setLastScriptId] = useState(null);
+  const [showExtractModal, setShowExtractModal] = useState(false);
 
-  // ---------------- UPLOAD ----------------
   const uploadFile = async (file) => {
     if (!file) return;
     const loading = toast.loading("Extracting text...");
@@ -40,17 +39,8 @@ export default function Dashboard() {
     }
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragActive(false);
-    uploadFile(e.dataTransfer.files[0]);
-  };
-
-  const handleSelect = (e) => uploadFile(e.target.files[0]);
-
-  // ---------------- REWRITE ----------------
   const rewriteStory = async () => {
-    if (!lastScriptId) return toast.error("Upload a file first");
+    if (!lastScriptId) return toast.error("Upload first");
 
     const loading = toast.loading("Rewriting...");
 
@@ -58,10 +48,7 @@ export default function Dashboard() {
       const res = await fetch("/api/story-rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: extractedText,
-          scriptId: lastScriptId,
-        }),
+        body: JSON.stringify({ text: extractedText, scriptId: lastScriptId }),
       });
 
       const data = await res.json();
@@ -70,6 +57,7 @@ export default function Dashboard() {
       if (data.success) {
         setRewrittenStory(data.rewritten);
         setCharacters(data.characters || []);
+        setDialogueText(""); // ✅ clear dialogue box
         toast.success("Story rewritten!");
       } else toast.error("Rewrite failed");
     } catch {
@@ -78,9 +66,8 @@ export default function Dashboard() {
     }
   };
 
-  // ---------------- DIALOGUES ----------------
   const generateDialogues = async () => {
-    if (!rewrittenStory) return toast.error("Rewrite story first");
+    if (!rewrittenStory) return toast.error("Rewrite first");
 
     const loading = toast.loading("Generating dialogues...");
 
@@ -100,31 +87,27 @@ export default function Dashboard() {
 
       if (data.success) {
         setDialogueText(data.dialogueText);
-        toast.success("Dialogues generated!");
-      } else toast.error("Dialogue generation failed");
+        toast.success("Dialogues ready!");
+      } else toast.error("Failed");
     } catch {
       toast.dismiss(loading);
-      toast.error("Dialogue generation failed");
+      toast.error("Failed");
     }
   };
 
-  // ---------------- DOWNLOAD ----------------
-  const downloadFile = () => {
+  const downloadDialogue = () => {
     if (!lastScriptId) return;
     window.location.href = `/api/scripts/export?scriptId=${lastScriptId}`;
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-10 flex flex-col items-center">
+    <div className="min-h-screen p-10 bg-gray-50 flex flex-col items-center">
       <Toaster />
 
-      <h1 className="text-4xl font-bold mb-10 text-gray-900">
-        Upload PDF / DOCX
-      </h1>
+      <h1 className="text-4xl font-bold mb-8">Upload PDF / DOCX</h1>
 
-      {/* UPLOAD BOX */}
       <div
-        className={`w-full max-w-2xl h-56 flex flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all shadow-sm ${
+        className={`w-full max-w-2xl h-56 flex flex-col justify-center items-center border-2 border-dashed rounded-xl ${
           dragActive ? "bg-blue-50 border-blue-500" : "bg-white border-gray-300"
         }`}
         onDragOver={(e) => {
@@ -132,84 +115,80 @@ export default function Dashboard() {
           setDragActive(true);
         }}
         onDragLeave={() => setDragActive(false)}
-        onDrop={handleDrop}
+        onDrop={(e) => {
+          e.preventDefault();
+          uploadFile(e.dataTransfer.files[0]);
+          setDragActive(false);
+        }}
       >
-        <p className="text-lg text-gray-600 mb-3">Drag & Drop your file here</p>
-        <p className="text-gray-400 mb-3 text-sm">OR</p>
+        <p>Drag & Drop your file</p>
+        <p className="text-sm text-gray-400">OR</p>
 
-        <label className="cursor-pointer bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700">
+        <label className="cursor-pointer bg-blue-600 text-white px-5 py-2 rounded">
           Choose File
-          <input
-            type="file"
-            accept=".pdf,.docx"
-            className="hidden"
-            onChange={handleSelect}
-          />
+          <input type="file" className="hidden" accept=".pdf,.docx" onChange={(e) => uploadFile(e.target.files[0])} />
         </label>
       </div>
 
       {extractedText && (
-        <div className="mt-8 flex gap-6">
+        <div className="mt-6 flex gap-4">
           <button
             onClick={() => setShowExtractModal(true)}
-            className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+            className="px-6 py-2 bg-green-600 text-white rounded"
           >
             View Extracted Text
           </button>
 
-          <button
-            onClick={rewriteStory}
-            className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-          >
+          <button onClick={rewriteStory} className="px-6 py-2 bg-purple-600 text-white rounded">
             Proceed to Story Rewriting
           </button>
         </div>
       )}
 
-      {/* SINGLE SWITCHING BOX */}
-      {(rewrittenStory || dialogueText) && (
+      {rewrittenStory && !dialogueText && (
         <div className="mt-10 w-full max-w-3xl">
-          <h2 className="text-2xl font-semibold mb-3">
-            {dialogueText ? "Dialogue Version" : "Rewritten Story"}
-          </h2>
+          <h2 className="text-2xl font-semibold mb-3">Rewritten Story</h2>
 
-          <div className="p-4 bg-gray-100 border rounded text-sm whitespace-pre-wrap max-h-96 overflow-y-scroll">
-            {dialogueText || rewrittenStory}
+          <div className="bg-gray-100 p-4 rounded max-h-96 overflow-y-scroll whitespace-pre-wrap">
+            {rewrittenStory}
           </div>
 
-          {!dialogueText && (
-            <button
-              onClick={generateDialogues}
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded"
-            >
-              Generate Dialogues
-            </button>
-          )}
-
-          {dialogueText && (
-            <button
-              onClick={downloadFile}
-              className="mt-4 px-5 py-2 bg-green-600 text-white rounded"
-            >
-              Download Dialogue File
-            </button>
-          )}
+          <button
+            onClick={generateDialogues}
+            className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded"
+          >
+            Generate Dialogues
+          </button>
         </div>
       )}
 
-      {/* EXTRACT MODAL */}
-      {showExtractModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg w-[600px] max-h-[80vh] overflow-y-auto">
-            <h2 className="text-xl font-semibold mb-3">Extracted Text</h2>
+      {dialogueText && (
+        <div className="mt-10 w-full max-w-3xl">
+          <h2 className="text-2xl font-semibold mb-3">Dialogue Version</h2>
 
-            <div className="whitespace-pre-wrap text-sm bg-gray-100 p-3 rounded border max-h-[60vh] overflow-y-scroll">
+          <div className="bg-gray-100 p-4 rounded max-h-96 overflow-y-scroll whitespace-pre-wrap">
+            {dialogueText}
+          </div>
+
+          <button
+            onClick={downloadDialogue}
+            className="mt-4 px-6 py-2 bg-green-600 text-white rounded"
+          >
+            Download Dialogue File
+          </button>
+        </div>
+      )}
+
+      {showExtractModal && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
+          <div className="bg-white p-6 rounded w-full max-w-xl">
+            <h3 className="font-semibold mb-3 text-xl">Extracted Text</h3>
+            <div className="bg-gray-100 p-3 max-h-80 overflow-y-scroll whitespace-pre-wrap">
               {extractedText}
             </div>
-
             <button
               onClick={() => setShowExtractModal(false)}
-              className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
+              className="mt-4 px-4 py-2 bg-gray-600 text-white rounded"
             >
               Close
             </button>
