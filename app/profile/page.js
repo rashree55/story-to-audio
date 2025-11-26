@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import prisma from "../../lib/prisma";
 
 export default async function ProfilePage() {
-  // ✅ Fetch session properly
+  
   const session = await getServerSession(authOptions);
 
   if (!session) {

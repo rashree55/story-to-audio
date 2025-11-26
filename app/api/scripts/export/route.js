@@ -1,4 +1,3 @@
-// app/api/scripts/export/route.js
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { PDFDocument, StandardFonts } from "pdf-lib";
@@ -59,7 +58,7 @@ export async function GET(req) {
     const filename = script.fileName || "output.txt";
     const lower = filename.toLowerCase();
 
-    // ✅ If original was PDF → export PDF
+    
     if (lower.endsWith(".pdf")) {
       const pdfDoc = await PDFDocument.create();
       const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
@@ -93,7 +92,7 @@ export async function GET(req) {
       });
     }
 
-    // ✅ Otherwise → export DOCX
+    
     const paragraphs = text.split(/\n\s*\n/);
 
     const doc = new Document({
