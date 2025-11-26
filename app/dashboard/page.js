@@ -57,7 +57,7 @@ export default function Dashboard() {
       if (data.success) {
         setRewrittenStory(data.rewritten);
         setCharacters(data.characters || []);
-        setDialogueText(""); // ✅ clear dialogue box
+        setDialogueText(""); 
         toast.success("Story rewritten!");
       } else toast.error("Rewrite failed");
     } catch {

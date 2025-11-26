@@ -1,5 +1,3 @@
-// app/api/story-dialogue/route.js
-
 import { NextResponse } from "next/server";
 import prisma from "../../../lib/prisma";
 import Groq from "groq-sdk";
@@ -17,7 +15,7 @@ export async function POST(req) {
       );
     }
 
-    // ✅ structured + simple dialogue prompt
+   
     const prompt = `
 Convert the following story into clean dialogues.
 
@@ -54,7 +52,7 @@ ${characters?.map((c) => c.name).join(", ") || "Use names from the story"}
     const output =
       completion.choices?.[0]?.message?.content?.trim() || "No dialogue generated";
 
-    // ✅ save to DB
+    
     if (scriptId) {
       await prisma.script.update({
         where: { id: scriptId },

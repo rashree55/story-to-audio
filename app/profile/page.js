@@ -11,7 +11,7 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
-  // Fetch user from DB
+ 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
   });
@@ -19,10 +19,10 @@ export default async function ProfilePage() {
   return (
     <div className="min-h-screen bg-linear-to-br from-sky-50 via-white to-blue-50">
       
-      {/* HEADER */}
+      
       <header className="w-full bg-linear-to-r from-blue-500 to-blue-400 shadow-lg px-6 py-4 flex items-center justify-between">
         
-        {/* App Logo */}
+       
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center text-sm font-bold text-white backdrop-blur">
             S
@@ -32,7 +32,7 @@ export default async function ProfilePage() {
           </span>
         </div>
 
-        {/* Logout Button */}
+       
         <form action="/api/auth/signout" method="post">
           <button
             type="submit"
@@ -43,11 +43,10 @@ export default async function ProfilePage() {
         </form>
       </header>
 
-      {/* MAIN CONTENT */}
       <main className="max-w-4xl mx-auto px-4 py-12">
         <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-10 flex flex-col md:flex-row gap-10">
           
-          {/* LEFT SIDE: AVATAR + NAME */}
+     
           <div className="flex flex-col items-center md:items-start md:w-1/3 text-center md:text-left">
             <img
               src={user.image}
@@ -62,14 +61,14 @@ export default async function ProfilePage() {
             </span>
           </div>
 
-          {/* RIGHT SIDE: DETAILS */}
+        
           <div className="md:w-2/3 space-y-6">
             
             <h2 className="text-xl font-semibold text-slate-800 border-b pb-2">
               Account Information
             </h2>
 
-            {/* USER ID */}
+          
             <div>
               <p className="text-slate-500">User ID</p>
               <p className="font-mono text-xs text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 mt-1 break-all">
@@ -77,7 +76,7 @@ export default async function ProfilePage() {
               </p>
             </div>
 
-            {/* EMAIL */}
+    
             <div>
               <p className="text-slate-500">Email</p>
               <p className="text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 mt-1 break-all">
@@ -85,7 +84,7 @@ export default async function ProfilePage() {
               </p>
             </div>
 
-            {/* CREATED + UPDATED */}
+
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <p className="text-slate-500">Created At</p>

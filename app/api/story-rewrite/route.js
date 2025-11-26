@@ -59,10 +59,10 @@ ${text}
       });
     }
 
-    // Remove unwanted ```json or ``` wrappers if any
+
     raw = raw.replace(/```json/g, "").replace(/```/g, "").trim();
 
-    // Store rewritten text
+
     await prisma.script.update({
       where: { id: scriptId },
       data: { rewritten_text: raw },
