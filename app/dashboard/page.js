@@ -12,6 +12,9 @@ export default function Dashboard() {
   const [lastScriptId, setLastScriptId] = useState(null);
   const [showExtractModal, setShowExtractModal] = useState(false);
 
+  // ------------------------------------
+  // 1) Upload File → Extract text
+  // ------------------------------------
   const uploadFile = async (file) => {
     if (!file) return;
     const loading = toast.loading("Extracting text...");
@@ -39,6 +42,9 @@ export default function Dashboard() {
     }
   };
 
+  // ------------------------------------
+  // 2) Rewrite story
+  // ------------------------------------
   const rewriteStory = async () => {
     if (!lastScriptId) return toast.error("Upload first");
 
@@ -57,7 +63,7 @@ export default function Dashboard() {
       if (data.success) {
         setRewrittenStory(data.rewritten);
         setCharacters(data.characters || []);
-        setDialogueText(""); 
+        setDialogueText("");
         toast.success("Story rewritten!");
       } else toast.error("Rewrite failed");
     } catch {
@@ -66,6 +72,9 @@ export default function Dashboard() {
     }
   };
 
+  // ------------------------------------
+  // 3) Generate dialogues
+  // ------------------------------------
   const generateDialogues = async () => {
     if (!rewrittenStory) return toast.error("Rewrite first");
 
@@ -95,17 +104,63 @@ export default function Dashboard() {
     }
   };
 
+  // ------------------------------------
+  // 4) Generate TTS Audio (NEW)
+  // ------------------------------------
+  const generateAudio = async () => {
+    if (!dialogueText) return toast.error("Generate dialogues first");
+
+    const loading = toast.loading("Generating audio...");
+
+    // Split into non-empty lines
+    const lines = dialogueText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l !== "");
+
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scriptId: lastScriptId,
+          dialogues: lines,
+        }),
+      });
+
+      const data = await res.json();
+      toast.dismiss(loading);
+
+      if (data.success) {
+        toast.success("Audio Ready!");
+        window.open(data.url, "_blank");
+      } else {
+        toast.error("TTS Failed");
+      }
+    } catch (err) {
+      toast.dismiss(loading);
+      toast.error("TTS Error");
+    }
+  };
+
+  // ------------------------------------
+  // 5) Download Dialogue File
+  // ------------------------------------
   const downloadDialogue = () => {
     if (!lastScriptId) return;
     window.location.href = `/api/scripts/export?scriptId=${lastScriptId}`;
   };
 
+  // ------------------------------------
+  // UI
+  // ------------------------------------
   return (
     <div className="min-h-screen p-10 bg-gray-50 flex flex-col items-center">
       <Toaster />
 
       <h1 className="text-4xl font-bold mb-8">Upload PDF / DOCX</h1>
 
+      {/* --- Upload Box --- */}
       <div
         className={`w-full max-w-2xl h-56 flex flex-col justify-center items-center border-2 border-dashed rounded-xl ${
           dragActive ? "bg-blue-50 border-blue-500" : "bg-white border-gray-300"
@@ -126,7 +181,12 @@ export default function Dashboard() {
 
         <label className="cursor-pointer bg-blue-600 text-white px-5 py-2 rounded">
           Choose File
-          <input type="file" className="hidden" accept=".pdf,.docx" onChange={(e) => uploadFile(e.target.files[0])} />
+          <input
+            type="file"
+            className="hidden"
+            accept=".pdf,.docx"
+            onChange={(e) => uploadFile(e.target.files[0])}
+          />
         </label>
       </div>
 
@@ -139,12 +199,16 @@ export default function Dashboard() {
             View Extracted Text
           </button>
 
-          <button onClick={rewriteStory} className="px-6 py-2 bg-purple-600 text-white rounded">
+          <button
+            onClick={rewriteStory}
+            className="px-6 py-2 bg-purple-600 text-white rounded"
+          >
             Proceed to Story Rewriting
           </button>
         </div>
       )}
 
+      {/* --- Rewritten Story --- */}
       {rewrittenStory && !dialogueText && (
         <div className="mt-10 w-full max-w-3xl">
           <h2 className="text-2xl font-semibold mb-3">Rewritten Story</h2>
@@ -162,6 +226,7 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* --- Dialogue Version --- */}
       {dialogueText && (
         <div className="mt-10 w-full max-w-3xl">
           <h2 className="text-2xl font-semibold mb-3">Dialogue Version</h2>
@@ -170,22 +235,35 @@ export default function Dashboard() {
             {dialogueText}
           </div>
 
-          <button
-            onClick={downloadDialogue}
-            className="mt-4 px-6 py-2 bg-green-600 text-white rounded"
-          >
-            Download Dialogue File
-          </button>
+          <div className="flex gap-4 mt-4">
+            <button
+              onClick={downloadDialogue}
+              className="px-6 py-2 bg-green-600 text-white rounded"
+            >
+              Download Dialogue File
+            </button>
+
+            {/* NEW BUTTON */}
+            <button
+              onClick={generateAudio}
+              className="px-6 py-2 bg-red-600 text-white rounded"
+            >
+              Generate Audio (TTS)
+            </button>
+          </div>
         </div>
       )}
 
+      {/* --- Extract Modal --- */}
       {showExtractModal && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
           <div className="bg-white p-6 rounded w-full max-w-xl">
             <h3 className="font-semibold mb-3 text-xl">Extracted Text</h3>
+
             <div className="bg-gray-100 p-3 max-h-80 overflow-y-scroll whitespace-pre-wrap">
               {extractedText}
             </div>
+
             <button
               onClick={() => setShowExtractModal(false)}
               className="mt-4 px-4 py-2 bg-gray-600 text-white rounded"

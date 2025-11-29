@@ -1,83 +1,109 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import ffmpeg from "fluent-ffmpeg";
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+import fs from "fs";
+import path from "path";
 
+// ENV
+const HF_KEY = process.env.HUGGINGFACE_API_KEY;
+const HF_MODEL = process.env.HF_TTS_MODEL || "coqui/XTTS-v2";
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+
+// HuggingFace Router Endpoint (NEW)
+const HF_URL = `https://router.huggingface.co/hf-inference/models/${HF_MODEL}`;
+
+// --- TTS FUNCTION ---
+async function generateXTTS(text, speaker) {
+  const payload = {
+    inputs: text,
+    parameters: {
+      speaker: speaker || "default",
+    },
+  };
+
+  const res = await fetch(HF_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${HF_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error("XTTS failed: " + errorText);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+// --- MAIN API ---
 export async function POST(req) {
   try {
-    const body = await req.json();
-    const { scriptId, dialogues } = body;
+    const { scriptId } = await req.json();
 
-    if (!scriptId || !dialogues) {
-      return NextResponse.json({ success: false, error: "Missing fields" });
+    if (!scriptId) {
+      return NextResponse.json({
+        success: false,
+        error: "scriptId missing",
+      });
     }
 
-    // Load script
-    const script = await prisma.script.findUnique({
-      where: { id: scriptId },
-    });
+    // Load script from DB
+    const script = await prisma.script.findUnique({ where: { id: scriptId } });
 
-    if (!script) {
-      return NextResponse.json({ success: false, error: "Script not found" });
+    if (!script || !script.dialogue_text) {
+      return NextResponse.json({
+        success: false,
+        error: "Dialogue text missing",
+      });
     }
 
-    // ---- 1. CALL HUGGINGFACE XTTS FOR EACH LINE ----
-    const outputs = [];
+    // Create folder for this script
+    const folder = path.join(process.cwd(), "public", "tts", scriptId);
+    if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
 
-    for (const line of dialogues) {
-      const r = await fetch(
-        `https://api-inference.huggingface.co/models/${process.env.HUGGINGFACE_TTS_MODEL}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            inputs: line,
-            options: { use_cache: true },
-          }),
-        }
-      );
+   
+    const lines = script.dialogue_text
+      .split("\n")
+      .filter((l) => l.trim() !== "");
 
-      const buffer = Buffer.from(await r.arrayBuffer());
-      const filename = `line-${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2)}.mp3`;
+    let index = 1;
+    let generatedFiles = [];
 
-      const fs = require("fs");
-      const filePath = `public/tts/${filename}`;
-      fs.writeFileSync(filePath, buffer);
+    for (const line of lines) {
+      let speaker = "Narrator";
+      let text = line;
 
-      outputs.push(filePath);
+      if (line.includes(":")) {
+        const [c, t] = line.split(":");
+        speaker = c.trim();
+        text = t.trim();
+      }
+
+      const buffer = await generateXTTS(text, speaker);
+
+      const filename = `line-${index}.mp3`;
+      const filepath = path.join(folder, filename);
+
+      fs.writeFileSync(filepath, buffer);
+
+      generatedFiles.push(`${BASE_URL}/tts/${scriptId}/${filename}`);
+      index++;
     }
-
-    // ---- 2. MERGE AUDIO CLIPS INTO ONE STORY MP3 ----
-    const finalPath = `public/tts/story-${scriptId}.mp3`;
-
-    await new Promise((resolve, reject) => {
-      const command = ffmpeg();
-
-      outputs.forEach((p) => command.input(p));
-
-      command
-        .on("end", () => resolve())
-        .on("error", (err) => reject(err))
-        .mergeToFile(finalPath);
-    });
-
-    // ---- 3. SAVE FINAL FILE PATH ----
-    await prisma.script.update({
-      where: { id: scriptId },
-      data: { final_audio: `/tts/story-${scriptId}.mp3` },
-    });
 
     return NextResponse.json({
       success: true,
-      url: `/tts/story-${scriptId}.mp3`,
+      message: "XTTS generation complete",
+      files: generatedFiles,
     });
   } catch (err) {
-    return NextResponse.json({ success: false, error: err.message });
+    console.error("TTS ERROR:", err);
+
+    return NextResponse.json({
+      success: false,
+      error: err.message,
+    });
   }
 }
